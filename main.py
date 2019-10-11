@@ -20,4 +20,5 @@ def channel(uid):
     return json.dumps(handleCrawl.crawlChannel(uid))
 
 if __name__ == '__main__':
-    app.run()
+    port = int(os.getenv('PORT', 8000))
+    app.run(debug=True, port=port, host='0.0.0.0')
