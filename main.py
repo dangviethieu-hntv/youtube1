@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-  
 from flask import Flask, render_template, json, request, send_file,request, flash, redirect
 import handleCrawl
+import os
 
 # Flask app should start in global layout
 app = Flask(__name__)
