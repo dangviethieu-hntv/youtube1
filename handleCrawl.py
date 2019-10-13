@@ -136,3 +136,44 @@ def crawlChannel(uid):
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         data_channel = {"error": "error: {}, file: {}, line: {}".format(e, fname, exc_tb.tb_lineno)}
     return data_channel
+
+def crawlUser(uid):
+    page = requests.get("https://www.youtube.com/user/"+uid+"/videos?view=0&sort=p&flow=grid")
+    soup = BeautifulSoup(page.content, 'html.parser', from_encoding="utf-8")
+    # soup_ = soup.prettify()
+    # with open("crawl/channel.html", "wb") as html:
+    #     html.write(soup_.encode('utf-8'))
+    data_channel = {}
+    try:
+        data_channel['uid'] = uid
+        data_channel['name'] = soup.find("a", { "class": "spf-link branded-page-header-title-link yt-uix-sessionlink" }).get_text()
+        try:
+            data_channel['subscribers'] = soup.find("span", { "class": "yt-subscription-button-subscriber-count-branded-horizontal subscribed yt-uix-tooltip" }).get_text() + ' subscribers'
+        except:
+            data_channel['subscribers'] = ""
+        data_channel['avatar'] = soup.find("img", { "class": "channel-header-profile-image" })['src']
+        result = soup.find('div',attrs={'id':'gh-banner'}).find("style").get_text()
+        if result is not None:
+            data_channel['profile_image'] = "https:" + re.search(r'url\((.+)\)', result).group(1)
+        data_channel_videos = []
+        for vid in soup.find_all(class_="yt-lockup clearfix yt-lockup-video yt-lockup-grid vve-check"):
+            data_videos = {}
+            data_videos['uid'] = vid.find(class_="yt-lockup-content").find("a")["href"][9:]
+            data_videos['title'] = vid.find(class_="yt-lockup-content").find("a")["title"]
+            data_videos['link'] = "/video/" + data_videos['uid'] + "/" + convertTitleToLink(data_videos['title']) + ".html"
+            data_videos['thumbnail'] = "http://img.youtube.com/vi/%s/0.jpg" % uid
+            vid_s = vid.find(class_="yt-lockup-meta-info").find_all("li")
+            data_videos['timePublish'] = vid_s[-1].get_text()
+            data_videos['viewCount'] = vid_s[0].get_text()
+            try:
+                data_videos['duration'] = vid.find(class_="video-time").get_text()
+            except:
+                data_videos['duration'] = "LIVE"
+                data_videos['timePublish'] = "LIVE"
+            data_channel_videos.append(data_videos)
+        data_channel['videos'] = data_channel_videos
+    except Exception as e:
+        _, _, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        data_channel = {"error": "error: {}, file: {}, line: {}".format(e, fname, exc_tb.tb_lineno)}
+    return data_channel

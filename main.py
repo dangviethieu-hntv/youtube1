@@ -20,6 +20,10 @@ def video(uid):
 def channel(uid):
     return json.dumps(handleCrawl.crawlChannel(uid))
 
+@app.route('/user/<uid>', methods=['POST','GET'])
+def user(uid):
+    return json.dumps(handleCrawl.crawlUser(uid))
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 8000))
     app.run(debug=True, port=port, host='0.0.0.0')
