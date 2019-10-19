@@ -231,5 +231,3 @@ def crawlUser(uid):
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         data_channel = {"error": "error: {}, file: {}, line: {}".format(e, fname, exc_tb.tb_lineno)}
     return data_channel
-
-crawlWatch('qSJky2QykM8')
