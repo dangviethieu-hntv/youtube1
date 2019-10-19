@@ -5,6 +5,11 @@ from bs4 import BeautifulSoup
 import json
 import os, sys
 import re
+import lxml.html
+from lxml.cssselect import CSSSelector
+
+YOUTUBE_COMMENTS_AJAX_URL = 'https://www.youtube.com/comment_ajax'
+USER_AGENT = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.116 Safari/537.36'
 
 def convertTitleToLink(title):
     title = re.sub(r"[()\"#@;:<>{}`+=~|.!?,\[\]]", "", title)
@@ -15,6 +20,27 @@ def convertTitleToLink(title):
         title = title.replace("--", "-")
     title = title.replace("\n", "")
     return title
+
+def find_value(html, key, num_chars=2):
+    pos_begin = html.find(key) + len(key) + num_chars
+    pos_end = html.find('"', pos_begin)
+    return html[pos_begin: pos_end]
+
+def extract_comments(html):
+    tree = lxml.html.fromstring(html)
+    item_sel = CSSSelector('.comment-item')
+    text_sel = CSSSelector('.comment-text-content')
+    time_sel = CSSSelector('.time')
+    author_sel = CSSSelector('.user-name')
+    author_avatar = CSSSelector('.user-photo')
+
+    for item in item_sel(tree):
+        yield {'data': text_sel(item)[0].text_content(),
+               'timePublish': time_sel(item)[0].text_content().strip(),
+               'name': author_sel(item)[0].text_content(),
+               'avatar': author_avatar(item)[0].get('src'),
+               'channel': author_sel(item)[0].get('href')
+            }
 
 def crawlSearch(keyword, number):
     query_string = urllib.parse.urlencode({"search_query": keyword.encode("utf-8")})
@@ -51,9 +77,11 @@ def crawlSearch(keyword, number):
     return display
 
 def crawlWatch(uid):
-    page = requests.get("https://www.youtube.com/watch?v="+uid)
+    session = requests.Session()
+    session.headers['User-Agent'] = USER_AGENT
+    page = session.get("https://www.youtube.com/all_comments?v="+uid)
     soup = BeautifulSoup(page.content, 'html.parser', from_encoding="utf-8")
-    # soup_ = soup.prettify()
+    soup_ = soup.prettify()
     # with open("crawl/watch.html", "wb") as html:
     #     html.write(soup_.encode('utf-8'))
     video_data = {}
@@ -71,7 +99,7 @@ def crawlWatch(uid):
         for keyword in keywords:
             keyword_format = {}
             keyword_format['keyword'] = keyword["content"]
-            keyword_format['link'] = "/tags/" + keyword["content"].replace(" ", "-")
+            keyword_format['link'] = "/tags/" + keyword["content"].replace(" ", "-").replace("/", "-")
             video_data['keywords'].append(keyword_format)
         video_data['related'] = []
         vids = soup.find_all(class_="video-list-item related-list-item show-video-time") + soup.find_all(class_="video-list-item related-list-item show-video-time related-list-item-compact-video")
@@ -90,6 +118,32 @@ def crawlWatch(uid):
                 related['duration'] = 'LIVE'
             video_data['related'].append(related)
         video_data['comment'] = []
+        # find XSRF_TOKEN
+        page_token = find_value(soup_, 'data-token')
+        session_token = find_value(soup_, 'XSRF_TOKEN', 4)
+        print(session_token)
+        first_iteration = True
+        # Get remaining comments (the same as pressing the 'Show more' button)
+        data = {'video_id': uid,
+                'session_token': session_token}
+
+        params = {'action_load_comments': 1,
+                'order_by_time': True,
+                'filter': uid}
+
+        if first_iteration:
+            params['order_menu'] = True
+        else:
+            data['page_token'] = page_token
+
+        response = session.post(YOUTUBE_COMMENTS_AJAX_URL, params=params, data=data)
+        if response.status_code == 200:
+            response_dict = json.loads(response.text)
+            html = response_dict['html_content']
+
+        for comment in extract_comments(html):
+            video_data['comment'].append(comment)
+
     except Exception as e:
         _, _, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
@@ -177,3 +231,5 @@ def crawlUser(uid):
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         data_channel = {"error": "error: {}, file: {}, line: {}".format(e, fname, exc_tb.tb_lineno)}
     return data_channel
+
+crawlWatch('qSJky2QykM8')
