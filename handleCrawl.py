@@ -140,9 +140,8 @@ def crawlWatch(uid):
         if response.status_code == 200:
             response_dict = json.loads(response.text)
             html = response_dict['html_content']
-
-        for comment in extract_comments(html):
-            video_data['comment'].append(comment)
+            for comment in extract_comments(html):
+                video_data['comment'].append(comment)
 
     except Exception as e:
         _, _, exc_tb = sys.exc_info()
